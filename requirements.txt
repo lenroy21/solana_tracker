@@ -1,4 +1,4 @@
 Flask==3.0.0
 requests==2.31.0
 waitress==3.0.2
-websockts==11.0.3
+websockts==15.0.0
