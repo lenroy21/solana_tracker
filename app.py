@@ -1,85 +1,85 @@
-import os
+import websocket
 import json
 import requests
-import websocket
+import telegram
+from telegram.ext import Updater, CommandHandler
 from flask import Flask, request, jsonify
 import threading
 
+# Constants
+BIRDEYE_API_KEY = "YOUR_API_KEY"
+TELEGRAM_BOT_TOKEN = "YOUR_TELEGRAM_BOT_TOKEN"
+TELEGRAM_CHAT_ID = "YOUR_CHAT_ID"
+BIRDEYE_WS_URL = f"wss://public-api.birdeye.so/socket/solana?x-api-key={BIRDEYE_API_KEY}"
+
+# Initialize Flask app
 app = Flask(__name__)
+bot = telegram.Bot(token=TELEGRAM_BOT_TOKEN)
 
-# Telegram bot credentials
-TELEGRAM_BOT_TOKEN = "7798971915:AAE1Y2U9gIOlveBcHU8Na4bwoRzNyc885IY"
-TELEGRAM_CHAT_ID = "8169255160"
+def start(update, context):
+    """Start command for Telegram bot."""
+    update.message.reply_text("Solana Token Tracker is running!")
 
-def send_telegram_alert(message):
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    payload = {"chat_id": TELEGRAM_CHAT_ID, "text": message}
-    requests.post(url, json=payload)
+# Telegram Bot Setup
+updater = Updater(TELEGRAM_BOT_TOKEN, use_context=True)
+dp = updater.dispatcher
+dp.add_handler(CommandHandler("start", start))
 
-@app.route('/webhook', methods=['POST'])
-def webhook():
-    """Receives token creation events and sends alerts to Telegram."""
-    data = request.json
-    event_type = data.get("event_type")
-
-    if event_type == "TOKEN_CREATION":
-        token_info = data.get("token_info", {})
-        message = f"🚀 New Token Created!\n"
-        message += f"🔹 Name: {token_info.get('name', 'N/A')}\n"
-        message += f"🔹 Symbol: {token_info.get('symbol', 'N/A')}\n"
-        message += f"🔹 Address: {token_info.get('address', 'N/A')}\n"
-        message += f"🔹 Creator: {token_info.get('creator', 'N/A')}\n"
-        message += f"🔹 Supply: {token_info.get('supply', 'N/A')}\n"
-
-        send_telegram_alert(message)
-
-    return jsonify({"status": "success"}), 200
-
-@app.route('/')
-def home():
-    return "Solana Token Tracker is running!"
-
-# WebSocket tracking for Birdeye
 def on_message(ws, message):
-    """Processes WebSocket messages and sends them to Flask webhook."""
+    """Handles incoming WebSocket messages."""
+    data = json.loads(message)
+    print("Received WebSocket Data:", data)
+
+    # Process and send to Telegram
     try:
-        data = json.loads(message)
-        requests.post("http://127.0.0.1:5000/webhook", json=data)
+        msg = f"New Token Update:\n{data}"
+        bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=msg)
     except Exception as e:
-        print(f"Error processing message: {e}")
+        print(f"Error sending to Telegram: {e}")
 
 def on_error(ws, error):
+    """Handles WebSocket errors."""
     print(f"WebSocket Error: {error}")
 
 def on_close(ws, close_status_code, close_msg):
+    """Handles WebSocket closure."""
     print("WebSocket Closed")
 
 def on_open(ws):
-    print("WebSocket Connection Established")
+    """Handles WebSocket connection opening."""
+    print("WebSocket Connection Opened")
 
 def start_websocket():
-    
-    """Starts WebSocket connection with Birdeye API Key."""
-    ws_url = "wss://public-api.birdeye.so/socket/solana?x-api-key=ab4bafdbf9ab4f499b32f25c8a29ddb7"  # Replace with actual Birdeye WebSocket URL
-
+    """Starts WebSocket connection with authentication."""
     headers = {
-        "Authorization": "Bearer ab4bafdbf9ab4f499b32f25c8a29ddb7"  # Add your API key here
+        "Authorization": f"Bearer {BIRDEYE_API_KEY}",
+        "User-Agent": "Mozilla/5.0"
     }
 
     ws = websocket.WebSocketApp(
-        ws_url,
-        header=headers,  # Include API key in headers
+        BIRDEYE_WS_URL,
+        header=headers,
         on_message=on_message,
         on_error=on_error,
-        on_close=on_close
+        on_close=on_close,
+        on_open=on_open
     )
-    ws.on_open = on_open
     ws.run_forever()
 
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    """Receives data from external sources and processes it."""
+    data = request.json
+    print("Received Webhook Data:", data)
+    return jsonify({"status": "success"}), 200
 
 if __name__ == "__main__":
-    # Start Flask in one thread
-    threading.Thread(target=lambda: app.run(host="0.0.0.0", port=5000)).start()
-    
-    # Start WebSocket in another thread
-    start_websocket()
+    # Start WebSocket in a separate thread
+    websocket_thread = threading.Thread(target=start_websocket)
+    websocket_thread.start()
+
+    # Start Telegram bot
+    updater.start_polling()
+
+    # Start Flask server
+    app.run(host="0.0.0.0", port=5000, debug=True)
