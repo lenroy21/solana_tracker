@@ -7,8 +7,8 @@ from telegram.ext import Application, CommandHandler, ContextTypes
 app = Flask(__name__)
 
 # Replace these with your Telegram bot token and chat ID
-TELEGRAM_BOT_TOKEN = os.environ.get("7798971915:AAE1Y2U9gIOlveBcHU8Na4bwoRzNyc885IY")  # Ensure this is set correctly
-TELEGRAM_CHAT_ID = os.environ.get("8169255160")  # Ensure this is set correctly
+TELEGRAM_BOT_TOKEN = "7798971915:AAE1Y2U9gIOlveBcHU8Na4bwoRzNyc885IY"  # Ensure this is set correctly
+TELEGRAM_CHAT_ID = "8169255160"  # Ensure this is set correctly
 
 # Initialize the Telegram bot application
 application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
